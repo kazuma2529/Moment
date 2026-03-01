@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Moment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Noto+Serif+JP:wght@200;300;400&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Reset & Variables ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #05091a;
+      --gold:        #c9a96e;
+      --gold-light:  #eddfc0;
+      --gold-dim:    rgba(201,169,110,0.35);
+      --gold-glow:   rgba(201,169,110,0.18);
+      --txt:         #eddfc0;
+      --txt-mid:     rgba(237,223,192,0.55);
+      --txt-low:     rgba(237,223,192,0.28);
+    }
+
+    html { height: 100%; }
+
+    body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Noto Serif JP', serif;
+      overflow-x: hidden;
+    }
+
+    /* ─── Particle canvas ─── */
+    #particle-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── Breathing animation (60 BPM ≈ 1 s) ─── */
+    @keyframes breathe {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.985; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes moonGlow {
+      0%, 100% { filter: drop-shadow(0 0 16px rgba(201,169,110,0.25)); }
+      50%       { filter: drop-shadow(0 0 32px rgba(201,169,110,0.50)); }
+    }
+
+    /* ─── Screen base ─── */
+    .screen {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px 100px;
+    }
+    .screen.hidden { display: none; }
+
+    /* ══════════════════════════════════════
+       ONBOARDING
+    ══════════════════════════════════════ */
+    #screen-onboarding {
+      text-align: center;
+    }
+
+    .ob-inner {
+      max-width: 440px;
+      width: 100%;
+      animation: fadeUp 1.4s cubic-bezier(.22,.61,.36,1) both;
+    }
+
+    .ob-brand {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2.4rem, 9vw, 4rem);
+      font-weight: 300;
+      letter-spacing: .55em;
+      text-indent: .55em;
+      color: var(--gold);
+      text-shadow: 0 0 60px rgba(201,169,110,.35);
+      margin-bottom: 6px;
+    }
+
+    .ob-tagline {
+      font-size: .68rem;
+      letter-spacing: .28em;
+      color: var(--txt-low);
+      text-transform: uppercase;
+      margin-bottom: 72px;
+    }
+
+    .ob-heading {
+      font-size: clamp(1.1rem, 3.5vw, 1.4rem);
+      font-weight: 200;
+      letter-spacing: .06em;
+      color: var(--txt);
+      margin-bottom: 10px;
+    }
+
+    .ob-sub {
+      font-size: .75rem;
+      line-height: 2;
+      letter-spacing: .1em;
+      color: var(--txt-mid);
+      margin-bottom: 52px;
+    }
+
+    /* Date input */
+    .ob-input-wrap {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 56px;
+    }
+
+    #birth-input {
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--gold-dim);
+      color: var(--gold-light);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(1.6rem, 6vw, 2.2rem);
+      font-weight: 300;
+      letter-spacing: .1em;
+      text-align: center;
+      width: 280px;
+      padding: 10px 4px 10px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color .4s;
+      color-scheme: dark;
+    }
+    #birth-input::-webkit-calendar-picker-indicator {
+      filter: invert(0.7) sepia(1) saturate(0.5) hue-rotate(5deg);
+      cursor: pointer;
+    }
+    #birth-input:focus { border-color: var(--gold); }
+
+    .ob-input-label {
+      position: absolute;
+      bottom: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: .65rem;
+      letter-spacing: .22em;
+      color: var(--txt-low);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* Start button */
+    .ob-btn {
+      display: inline-block;
+      background: transparent;
+      border: 1px solid var(--gold-dim);
+      color: var(--gold);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1rem;
+      font-weight: 400;
+      letter-spacing: .32em;
+      text-indent: .32em;
+      text-transform: uppercase;
+      padding: 15px 52px;
+      cursor: pointer;
+      transition: border-color .4s, color .4s, box-shadow .4s;
+      position: relative;
+      overflow: hidden;
+    }
+    .ob-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(201,169,110,.1) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity .4s;
+    }
+    .ob-btn:hover {
+      border-color: var(--gold);
+      color: var(--gold-light);
+      box-shadow: 0 0 32px rgba(201,169,110,.22);
+    }
+    .ob-btn:hover::after { opacity: 1; }
+
+    .ob-error {
+      min-height: 20px;
+      margin-top: 18px;
+      font-size: .72rem;
+      letter-spacing: .1em;
+      color: rgba(201,169,110,.7);
+    }
+
+    /* ══════════════════════════════════════
+       MAIN DISPLAY
+    ══════════════════════════════════════ */
+    #screen-main {
+      justify-content: flex-start;
+      padding-top: 56px;
+    }
+
+    .main-inner {
+      max-width: 560px;
+      width: 100%;
+      animation: fadeUp 1.6s cubic-bezier(.22,.61,.36,1) both;
+    }
+
+    /* ── Header ── */
+    .main-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .main-brand {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1rem;
+      font-weight: 300;
+      letter-spacing: .55em;
+      text-indent: .55em;
+      color: var(--txt-low);
+      text-transform: uppercase;
+    }
+
+    /* ── Moon ── */
+    .moon-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 72px;
+    }
+    #moon-canvas {
+      display: block;
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      animation: moonGlow 4s ease-in-out infinite;
+    }
+    .moon-label {
+      margin-top: 14px;
+      font-size: .62rem;
+      letter-spacing: .24em;
+      color: var(--txt-low);
+      text-transform: uppercase;
+    }
+
+    /* ── Countdown grid ── */
+    .countdown-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      position: relative;
+      margin-bottom: 72px;
+    }
+
+    /* vertical dividers */
+    .countdown-grid::before,
+    .countdown-grid::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1px;
+      height: 55%;
+      background: linear-gradient(to bottom, transparent, var(--gold-dim), transparent);
+    }
+    .countdown-grid::before { left: 33.333%; }
+    .countdown-grid::after  { left: 66.666%; }
+
+    .cd-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 6px 20px;
+      animation: breathe 1s ease-in-out infinite;
+    }
+    .cd-item:nth-child(2) { animation-delay: .33s; }
+    .cd-item:nth-child(3) { animation-delay: .66s; }
+
+    .cd-number {
+      display: block;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2.4rem, 9vw, 4.2rem);
+      font-weight: 300;
+      line-height: 1;
+      letter-spacing: -.01em;
+      background: linear-gradient(160deg, var(--gold-light) 0%, var(--gold) 55%, rgba(181,138,80,.7) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 18px rgba(201,169,110,.38));
+      margin-bottom: 10px;
+    }
+
+    .cd-unit {
+      font-size: clamp(.9rem, 3vw, 1.1rem);
+      font-weight: 200;
+      letter-spacing: .2em;
+      color: var(--txt-mid);
+    }
+
+    /* ── Divider line ── */
+    .hairline {
+      width: 32px;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--gold-dim), transparent);
+      margin: 0 auto 64px;
+    }
+
+    /* ── Progress ── */
+    .progress-wrap {
+      text-align: center;
+      margin-bottom: 64px;
+      animation: breathe 1s ease-in-out infinite;
+      animation-delay: .5s;
+    }
+    .progress-pct {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2.2rem, 8vw, 3rem);
+      font-weight: 300;
+      letter-spacing: .05em;
+      color: var(--txt);
+    }
+    .progress-label {
+      margin-top: 6px;
+      font-size: .65rem;
+      letter-spacing: .26em;
+      color: var(--txt-low);
+      text-transform: uppercase;
+    }
+
+    /* ── Milestones ── */
+    .milestones {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 72px;
+      position: relative;
+    }
+    .milestones::before,
+    .milestones::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1px;
+      height: 60%;
+      background: linear-gradient(to bottom, transparent, var(--gold-dim), transparent);
+    }
+    .milestones::before { left: 33.333%; }
+    .milestones::after  { left: 66.666%; }
+
+    .ms-item {
+      flex: 1 1 33.333%;
+      text-align: center;
+      padding: 0 8px;
+    }
+    .ms-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(1.1rem, 4vw, 1.5rem);
+      font-weight: 300;
+      color: var(--gold);
+      letter-spacing: .04em;
+      margin-bottom: 6px;
+    }
+    .ms-label {
+      font-size: .6rem;
+      letter-spacing: .2em;
+      color: var(--txt-low);
+      text-transform: uppercase;
+    }
+
+    /* ── Reset ── */
+    .reset-btn {
+      display: block;
+      margin: 0 auto 60px;
+      background: transparent;
+      border: none;
+      color: var(--txt-low);
+      font-family: 'Noto Serif JP', serif;
+      font-size: .62rem;
+      letter-spacing: .18em;
+      cursor: pointer;
+      padding: 6px 12px;
+      transition: color .3s;
+    }
+    .reset-btn:hover { color: var(--txt-mid); }
+
+    /* ══════════════════════════════════════
+       FIXED FOOTER
+    ══════════════════════════════════════ */
+    #footer-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
+      text-align: center;
+      background: linear-gradient(to top, rgba(5,9,26,.97) 55%, transparent 100%);
+      pointer-events: none;
+    }
+    .footer-msg {
+      font-size: clamp(.75rem, 2.5vw, .9rem);
+      letter-spacing: .14em;
+      color: var(--txt-mid);
+      animation: breathe 1s ease-in-out infinite;
+      animation-delay: .8s;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 360px) {
+      .cd-number  { font-size: 2rem; }
+      .ms-value   { font-size: 1rem; }
+      .milestones { gap: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Particle Background -->
+<canvas id="particle-canvas"></canvas>
+
+<!-- ══ ONBOARDING ══ -->
+<div id="screen-onboarding" class="screen">
+  <div class="ob-inner">
+    <h1 class="ob-brand">Moment</h1>
+    <p class="ob-tagline">Your private time boutique</p>
+
+    <p class="ob-heading">あなたの生年月日を教えてください</p>
+    <p class="ob-sub">
+      今という瞬間が、<br>
+      どれほど貴重かを知るために。
+    </p>
+
+    <div class="ob-input-wrap">
+      <input type="date" id="birth-input" />
+      <span class="ob-input-label">生年月日</span>
+    </div>
+
+    <br />
+    <button class="ob-btn" id="start-btn">はじめる</button>
+    <p class="ob-error" id="ob-error"></p>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div id="screen-main" class="screen hidden">
+  <div class="main-inner">
+
+    <!-- Header -->
+    <header class="main-header">
+      <p class="main-brand">Moment</p>
+    </header>
+
+    <!-- Moon phase -->
+    <div class="moon-wrap">
+      <canvas id="moon-canvas" width="220" height="220"></canvas>
+      <p class="moon-label">人生の満ち欠け</p>
+    </div>
+
+    <!-- Countdown numbers -->
+    <div class="countdown-grid">
+      <div class="cd-item">
+        <span class="cd-number" id="val-days">—</span>
+        <span class="cd-unit">日</span>
+      </div>
+      <div class="cd-item">
+        <span class="cd-number" id="val-weeks">—</span>
+        <span class="cd-unit">週</span>
+      </div>
+      <div class="cd-item">
+        <span class="cd-number" id="val-months">—</span>
+        <span class="cd-unit">月</span>
+      </div>
+    </div>
+
+    <div class="hairline"></div>
+
+    <!-- Progress -->
+    <div class="progress-wrap">
+      <p class="progress-pct"><span id="val-pct">—</span>%</p>
+      <p class="progress-label">人生の経過</p>
+    </div>
+
+    <!-- Milestones -->
+    <div class="milestones">
+      <div class="ms-item">
+        <p class="ms-value" id="val-age">—</p>
+        <p class="ms-label">現在の年齢</p>
+      </div>
+      <div class="ms-item">
+        <p class="ms-value">80歳</p>
+        <p class="ms-label">終点</p>
+      </div>
+      <div class="ms-item">
+        <p class="ms-value" id="val-endpoint">—</p>
+        <p class="ms-label">命日</p>
+      </div>
+    </div>
+
+    <button class="reset-btn" id="reset-btn">生年月日を変更する</button>
+  </div>
+</div>
+
+<!-- ══ FIXED FOOTER ══ -->
+<footer id="footer-bar">
+  <p class="footer-msg">後悔ない一日を送れていますか？</p>
+</footer>
+
+<script>
+/* ══════════════════════════════════════════
+   PARTICLE SYSTEM
+══════════════════════════════════════════ */
+(function () {
+  const canvas = document.getElementById('particle-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles;
+  const COUNT = 90;
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+  }
+
+  function createParticle() {
+    return {
+      x:       Math.random() * W,
+      y:       Math.random() * H,
+      r:       Math.random() * 1.2 + 0.2,
+      speed:   Math.random() * 0.25 + 0.05,
+      drift:   (Math.random() - 0.5) * 0.15,
+      opacity: Math.random() * 0.22 + 0.04,
+    };
+  }
+
+  function initParticles() {
+    particles = Array.from({ length: COUNT }, createParticle);
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, W, H);
+    for (const p of particles) {
+      p.y += p.speed;
+      p.x += p.drift;
+      if (p.y > H + 4) { p.y = -4; p.x = Math.random() * W; }
+      ctx.save();
+      ctx.globalAlpha = p.opacity;
+      ctx.fillStyle = '#c9a96e';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    requestAnimationFrame(tick);
+  }
+
+  resize();
+  initParticles();
+  tick();
+  window.addEventListener('resize', () => { resize(); });
+})();
+
+
+/* ══════════════════════════════════════════
+   MOON PHASE
+══════════════════════════════════════════ */
+function drawMoon(progress) {
+  const canvas = document.getElementById('moon-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  const displaySize = 110;
+  canvas.width  = displaySize * dpr;
+  canvas.height = displaySize * dpr;
+  canvas.style.width  = displaySize + 'px';
+  canvas.style.height = displaySize + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cx = displaySize / 2;
+  const cy = displaySize / 2;
+  const r  = displaySize / 2 - 8;
+  const TAU = Math.PI * 2;
+
+  ctx.clearRect(0, 0, displaySize, displaySize);
+
+  // Outer glow
+  const glow = ctx.createRadialGradient(cx, cy, r * 0.4, cx, cy, r * 1.8);
+  glow.addColorStop(0,   'rgba(201,169,110,0.06)');
+  glow.addColorStop(0.5, 'rgba(201,169,110,0.03)');
+  glow.addColorStop(1,   'transparent');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.8, 0, TAU);
+  ctx.fillStyle = glow;
+  ctx.fill();
+
+  // Dark disk
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, TAU);
+  ctx.fillStyle = 'rgba(5,8,22,0.92)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(201,169,110,0.18)';
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+
+  // phase: 0 = new moon (birth), 0.5 = full (midlife), 1 = new moon (end)
+  const phase = progress; // 0–1
+  const waxing = phase <= 0.5;
+  const illumination = waxing ? phase * 2 : (1 - phase) * 2; // 0→1→0
+
+  if (illumination < 0.01) return;
+
+  // Gold gradient
+  const grad = ctx.createRadialGradient(cx - r * 0.1, cy - r * 0.2, 0, cx, cy, r);
+  grad.addColorStop(0,   '#f5ead0');
+  grad.addColorStop(0.35,'#dfc080');
+  grad.addColorStop(0.75,'#c9a96e');
+  grad.addColorStop(1,   'rgba(170,120,55,0.45)');
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, TAU);
+  ctx.clip();
+
+  // Build the lit shape
+  ctx.beginPath();
+
+  if (waxing) {
+    // Right hemisphere lit
+    if (illumination <= 0.5) {
+      // Waxing crescent
+      const xScale = 1 - 2 * illumination;
+      ctx.moveTo(cx, cy - r);
+      ctx.arc(cx, cy, r, -TAU / 4, TAU / 4, false); // clockwise right arc
+      ctx.ellipse(cx, cy, r * xScale, r, 0, TAU / 4, -TAU / 4, true); // CCW through right of ellipse
+    } else {
+      // Waxing gibbous
+      const xScale = 2 * illumination - 1;
+      ctx.moveTo(cx, cy - r);
+      ctx.arc(cx, cy, r, -TAU / 4, TAU / 4, false);
+      ctx.ellipse(cx, cy, r * xScale, r, 0, TAU / 4, -TAU / 4, false); // CW through left
+    }
+  } else {
+    // Left hemisphere lit (waning)
+    if (illumination <= 0.5) {
+      // Waning crescent
+      const xScale = 1 - 2 * illumination;
+      ctx.moveTo(cx, cy - r);
+      ctx.arc(cx, cy, r, -TAU / 4, TAU / 4, true); // CCW left arc
+      ctx.ellipse(cx, cy, r * xScale, r, 0, TAU / 4, -TAU / 4, false); // CW through left
+    } else {
+      // Waning gibbous
+      const xScale = 2 * illumination - 1;
+      ctx.moveTo(cx, cy - r);
+      ctx.arc(cx, cy, r, -TAU / 4, TAU / 4, true);
+      ctx.ellipse(cx, cy, r * xScale, r, 0, TAU / 4, -TAU / 4, true);
+    }
+  }
+
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+}
+
+
+/* ══════════════════════════════════════════
+   DATE CALCULATIONS
+══════════════════════════════════════════ */
+function calcAge(birth, today) {
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function calcMonthsRemaining(today, endpoint) {
+  let y = endpoint.getFullYear() - today.getFullYear();
+  let m = endpoint.getMonth() - today.getMonth();
+  if (endpoint.getDate() < today.getDate()) m--;
+  return Math.max(0, y * 12 + m);
+}
+
+function calcData(birthStr) {
+  const birth    = new Date(birthStr);
+  const today    = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const endpoint = new Date(birth);
+  endpoint.setFullYear(birth.getFullYear() + 80);
+
+  const msLeft   = Math.max(0, endpoint - today);
+  const msTotal  = endpoint - birth;
+  const msElapsed = today - birth;
+
+  const daysLeft   = Math.floor(msLeft / 86400000);
+  const weeksLeft  = Math.floor(daysLeft / 7);
+  const monthsLeft = calcMonthsRemaining(today, endpoint);
+
+  const progress = Math.min(1, Math.max(0, msElapsed / msTotal));
+  const pct      = (progress * 100).toFixed(1);
+  const age      = calcAge(birth, today);
+
+  const endStr = endpoint.toLocaleDateString('ja-JP', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  return { daysLeft, weeksLeft, monthsLeft, pct, age, endStr, progress };
+}
+
+
+/* ══════════════════════════════════════════
+   APP
+══════════════════════════════════════════ */
+const STORAGE_KEY = 'moment_birthday';
+
+function fmt(n) {
+  return n.toLocaleString('ja-JP');
+}
+
+function showMain(birthStr) {
+  const data = calcData(birthStr);
+
+  document.getElementById('val-days').textContent   = fmt(data.daysLeft);
+  document.getElementById('val-weeks').textContent  = fmt(data.weeksLeft);
+  document.getElementById('val-months').textContent = fmt(data.monthsLeft);
+  document.getElementById('val-pct').textContent    = data.pct;
+  document.getElementById('val-age').textContent    = data.age + '歳';
+  document.getElementById('val-endpoint').textContent = data.endStr;
+
+  drawMoon(data.progress);
+
+  document.getElementById('screen-onboarding').classList.add('hidden');
+  document.getElementById('screen-main').classList.remove('hidden');
+}
+
+function init() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    showMain(saved);
+  } else {
+    document.getElementById('screen-onboarding').classList.remove('hidden');
+    document.getElementById('screen-main').classList.add('hidden');
+  }
+}
+
+/* Onboarding submit */
+document.getElementById('start-btn').addEventListener('click', () => {
+  const val = document.getElementById('birth-input').value;
+  const err = document.getElementById('ob-error');
+
+  if (!val) {
+    err.textContent = '生年月日を入力してください。';
+    return;
+  }
+
+  const birth = new Date(val);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (birth >= today) {
+    err.textContent = '未来の日付は入力できません。';
+    return;
+  }
+  if (today.getFullYear() - birth.getFullYear() > 120) {
+    err.textContent = '正しい生年月日を入力してください。';
+    return;
+  }
+
+  err.textContent = '';
+  localStorage.setItem(STORAGE_KEY, val);
+  showMain(val);
+});
+
+/* Allow Enter key */
+document.getElementById('birth-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('start-btn').click();
+});
+
+/* Reset */
+document.getElementById('reset-btn').addEventListener('click', () => {
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById('screen-main').classList.add('hidden');
+  document.getElementById('screen-onboarding').classList.remove('hidden');
+  document.getElementById('birth-input').value = '';
+});
+
+/* Live update every minute */
+setInterval(() => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) showMain(saved);
+}, 60000);
+
+init();
+</script>
+</body>
+</html>
