@@ -223,7 +223,7 @@
     }
     .main-brand {
       font-family: 'Cormorant Garamond', serif;
-      font-size: 1rem;
+      font-size: clamp(1.2rem, 4vw, 1.6rem);
       font-weight: 300;
       letter-spacing: .55em;
       text-indent: .55em;
@@ -247,7 +247,7 @@
     }
     .moon-label {
       margin-top: 14px;
-      font-size: .62rem;
+      font-size: clamp(.9rem, 2.5vw, 1.1rem);
       letter-spacing: .24em;
       color: var(--txt-low);
       text-transform: uppercase;
@@ -288,7 +288,7 @@
     .cd-number {
       display: block;
       font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(2.4rem, 9vw, 4.2rem);
+      font-size: clamp(2.8rem, 10vw, 5rem);
       font-weight: 300;
       line-height: 1;
       letter-spacing: -.01em;
@@ -301,7 +301,7 @@
     }
 
     .cd-unit {
-      font-size: clamp(.9rem, 3vw, 1.1rem);
+      font-size: clamp(1rem, 3.5vw, 1.4rem);
       font-weight: 200;
       letter-spacing: .2em;
       color: var(--txt-mid);
@@ -324,14 +324,14 @@
     }
     .progress-pct {
       font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(2.2rem, 8vw, 3rem);
+      font-size: clamp(2.6rem, 9vw, 3.6rem);
       font-weight: 300;
       letter-spacing: .05em;
       color: var(--txt);
     }
     .progress-label {
       margin-top: 6px;
-      font-size: .65rem;
+      font-size: .8rem;
       letter-spacing: .26em;
       color: var(--txt-low);
       text-transform: uppercase;
@@ -366,14 +366,16 @@
     }
     .ms-value {
       font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(1.1rem, 4vw, 1.5rem);
+      font-size: clamp(1.4rem, 4.5vw, 2.1rem);
       font-weight: 300;
       color: var(--gold);
       letter-spacing: .04em;
       margin-bottom: 6px;
+      white-space: nowrap;
+      min-width: 0;
     }
     .ms-label {
-      font-size: .6rem;
+      font-size: .85rem;
       letter-spacing: .2em;
       color: var(--txt-low);
       text-transform: uppercase;
@@ -387,7 +389,7 @@
       border: none;
       color: var(--txt-low);
       font-family: 'Noto Serif JP', serif;
-      font-size: .62rem;
+      font-size: .8rem;
       letter-spacing: .18em;
       cursor: pointer;
       padding: 6px 12px;
@@ -410,17 +412,41 @@
       pointer-events: none;
     }
     .footer-msg {
-      font-size: clamp(.75rem, 2.5vw, .9rem);
+      display: inline-block;
+      font-size: clamp(1rem, 3.5vw, 1.25rem);
       letter-spacing: .14em;
       color: var(--txt-mid);
+      padding: 12px 24px;
+      background: linear-gradient(135deg, rgba(201,169,110,0.08) 0%, rgba(201,169,110,0.18) 100%);
+      border: 1px solid rgba(201,169,110,0.25);
+      border-radius: 4px;
+      box-shadow: 0 0 24px rgba(201,169,110,0.15);
       animation: breathe 1s ease-in-out infinite;
       animation-delay: .8s;
     }
 
+    /* ── Progress bar ── */
+    .progress-bar-track {
+      width: 100%;
+      max-width: 320px;
+      height: 8px;
+      margin: 0 auto 20px;
+      background: rgba(201,169,110,0.12);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold-dim) 0%, var(--gold) 50%, var(--gold-light) 100%);
+      border-radius: 4px;
+      transition: width 0.6s cubic-bezier(.22,.61,.36,1);
+      box-shadow: 0 0 12px rgba(201,169,110,0.25);
+    }
+
     /* ── Responsive ── */
     @media (max-width: 360px) {
-      .cd-number  { font-size: 2rem; }
-      .ms-value   { font-size: 1rem; }
+      .cd-number  { font-size: 2.2rem; }
+      .ms-value   { font-size: 1.25rem; }
       .milestones { gap: 0; }
     }
   </style>
@@ -472,15 +498,15 @@
     <div class="countdown-grid">
       <div class="cd-item">
         <span class="cd-number" id="val-days">—</span>
-        <span class="cd-unit">日</span>
+        <span class="cd-unit">残りの日</span>
       </div>
       <div class="cd-item">
         <span class="cd-number" id="val-weeks">—</span>
-        <span class="cd-unit">週</span>
+        <span class="cd-unit">残りの週</span>
       </div>
       <div class="cd-item">
         <span class="cd-number" id="val-months">—</span>
-        <span class="cd-unit">月</span>
+        <span class="cd-unit">残りの月</span>
       </div>
     </div>
 
@@ -488,6 +514,9 @@
 
     <!-- Progress -->
     <div class="progress-wrap">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%"></div>
+      </div>
       <p class="progress-pct"><span id="val-pct">—</span>%</p>
       <p class="progress-label">人生の経過</p>
     </div>
@@ -716,9 +745,9 @@ function calcData(birthStr) {
   const pct      = (progress * 100).toFixed(1);
   const age      = calcAge(birth, today);
 
-  const endStr = endpoint.toLocaleDateString('ja-JP', {
-    year: 'numeric', month: 'long', day: 'numeric'
-  });
+  const endStr = endpoint.getFullYear() + '/' +
+    String(endpoint.getMonth() + 1).padStart(2, '0') + '/' +
+    String(endpoint.getDate()).padStart(2, '0');
 
   return { daysLeft, weeksLeft, monthsLeft, pct, age, endStr, progress };
 }
@@ -742,6 +771,9 @@ function showMain(birthStr) {
   document.getElementById('val-pct').textContent    = data.pct;
   document.getElementById('val-age').textContent    = data.age + '歳';
   document.getElementById('val-endpoint').textContent = data.endStr;
+
+  const fillEl = document.getElementById('progress-bar-fill');
+  if (fillEl) fillEl.style.width = (data.progress * 100) + '%';
 
   drawMoon(data.progress);
 
